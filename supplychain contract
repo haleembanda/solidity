@@ -1,0 +1,104 @@
+//SPDX-License-Identifier: MIT
+
+pragma solidity ^0.8.17;
+
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import "@openzeppelin/contracts/token/ERC721/extensions/IERC721Enumerable.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+
+contract SupplyChain is Ownable {
+    
+    using SafeMath for uint256;
+    
+    // ERC20 token used for payments
+    IERC20 public paymentToken;
+    
+    // ERC721 token used for product ownership
+    IERC721Enumerable public productToken;
+    
+    // Struct for storing product information
+    struct Product {
+        uint256 productId;
+        uint256 price;
+        address owner;
+        bool isSold;
+    }
+    
+    // Mapping from product ID to Product struct
+    mapping(uint256 => Product) public products;
+    
+    // Event emitted when a product is added
+    event ProductAdded(uint256 indexed productId, uint256 price);
+    
+    // Event emitted when a product is sold
+    event ProductSold(uint256 indexed productId, address buyer);
+    
+    // Event emitted when a product price is updated
+    event ProductPriceUpdated(uint256 indexed productId, uint256 newPrice);
+    
+    // Event emitted when the product ownership is transferred
+    event ProductTransferred(uint256 indexed productId, address newOwner);
+    
+    // Constructor
+    constructor(IERC20 _paymentToken, IERC721Enumerable _productToken) {
+        paymentToken = _paymentToken;
+        productToken = _productToken;
+    }
+    
+    // Add a new product
+    function addProduct(uint256 _productId, uint256 _price) external onlyOwner {
+        require(_price > 0, "Price must be greater than zero");
+        require(products[_productId].productId == 0, "Product already exists");
+        
+        products[_productId] = Product({
+            productId: _productId,
+            price: _price,
+            owner: address(0),
+            isSold: false
+        });
+        
+        emit ProductAdded(_productId, _price);
+    }
+    
+    // Update the price of a product
+    function updateProductPrice(uint256 _productId, uint256 _newPrice) external onlyOwner {
+        require(_newPrice > 0, "New price must be greater than zero");
+        require(products[_productId].productId != 0, "Product does not exist");
+        
+        products[_productId].price = _newPrice;
+        
+        emit ProductPriceUpdated(_productId, _newPrice);
+    }
+    
+    // Buy a product
+    function buyProduct(uint256 _productId) external {
+        Product storage product = products[_productId];
+        require(product.productId != 0, "Product does not exist");
+        require(!product.isSold, "Product already sold");
+        
+        // Transfer payment token from buyer to contract
+        paymentToken.transferFrom(msg.sender, address(this), product.price);
+        
+        // Transfer product ownership
+        productToken.transferFrom(product.owner, msg.sender, _productId);
+        
+        // Update product information
+        product.owner = msg.sender;
+        product.isSold = true;
+        
+        emit ProductSold(_productId, msg.sender);
+    }
+    
+    // Transfer ownership of a product
+    function transferProductOwnership(uint256 _productId, address _newOwner) external {
+        Product storage product = products[_productId];
+        require(product.productId != 0, "Product does not exist");
+        require(msg.sender == product.owner, "Only product owner can transfer ownership");
+        
+        // Transfer ownership of
+        emit ProductTransferred(_productId, _newOwner);
+    }    
+}
+
